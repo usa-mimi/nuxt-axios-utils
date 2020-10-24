@@ -6,6 +6,12 @@ import axios, {
 } from 'axios'
 import qs from 'qs'
 import { snakeProps, camelProps } from 'change-prop-case'
+export {
+  AxiosInstance,
+  AxiosError,
+  AxiosTransformer,
+  AxiosResponse,
+} from 'axios'
 
 export interface HttpError extends AxiosError {
   status?: number
@@ -73,7 +79,6 @@ export type NuxtAxiosOptions = {
   ) => Promise<HttpError>
   req?: any
 }
-
 export function createAxiosInstance({
   clientBaseURL,
   serverBaseURL,
