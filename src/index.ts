@@ -3,6 +3,7 @@ import axios, {
   AxiosTransformer,
   AxiosInstance,
   AxiosResponse,
+  AxiosRequestConfig,
 } from 'axios'
 import qs from 'qs'
 import { snakeProps, camelProps } from 'change-prop-case'
@@ -54,23 +55,15 @@ function setHttpStatusToError(error: HttpError) {
   return error
 }
 
-export type RequestHeaderConfig = {
-  common?: Record<string, string>
-  get?: Record<string, string>
-  post?: Record<string, string>
-  put?: Record<string, string>
-  patch?: Record<string, string>
-  delete?: Record<string, string>
-}
-
 export type RequestHeaderWriter = (
-  headers: RequestHeaderConfig
-) => RequestHeaderConfig
+  headers: null | Record<string, any>
+) => null | Record<string, any>
 
 export type NuxtAxiosOptions = {
   clientBaseURL: string
   serverBaseURL?: string
   isServer: boolean
+  onRequestConfig?: (config: AxiosRequestConfig) => AxiosRequestConfig
   headerWriter?: RequestHeaderWriter
   onHttpError?: (
     err: HttpError,
@@ -83,11 +76,12 @@ export function createAxiosInstance({
   clientBaseURL,
   serverBaseURL,
   isServer,
+  onRequestConfig,
   headerWriter,
   onHttpError,
   req,
 }: NuxtAxiosOptions): AxiosInstance {
-  let headers: RequestHeaderConfig | null = null
+  let serverHeaders: Object | null = null
   serverBaseURL = serverBaseURL || clientBaseURL
 
   if (isServer && req) {
@@ -95,12 +89,10 @@ export function createAxiosInstance({
     // nginxのproxy_set_headerで設定する項目をここで設定する
     const url = require('url')
     const endpointUrl = new url.URL(clientBaseURL)
-    headers = {
-      common: {
+    serverHeaders = {
         host: endpointUrl.host,
         'x-forwarded-proto': endpointUrl.protocol,
         'x-forwarded-for': req.headers['x-forwarded-for'] || '',
-      },
     }
   }
 
@@ -109,7 +101,6 @@ export function createAxiosInstance({
       qs.stringify(toSnake(params), { indices: false }),
     transformRequest: getTransformRequest(),
     transformResponse: getTransformResponse(),
-    headers,
     baseURL: isServer ? serverBaseURL : clientBaseURL,
   })
 
@@ -127,8 +118,16 @@ export function createAxiosInstance({
   )
   axiosInstance.interceptors.request.use(
     config => {
+      if (isServer && serverHeaders) {
+        Object.entries(serverHeaders).forEach(([k, v]) => {
+          config.headers.common[k] = v
+        })
+      }
+      if (onRequestConfig) {
+        config = onRequestConfig(config)
+      }
       if (headerWriter) {
-        config.headers = headerWriter(config.headers)
+        config.headers = headerWriter(config.headers || {}) || {}
       }
       return config
     },
